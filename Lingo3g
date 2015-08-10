@@ -1,0 +1,152 @@
+import com.carrotsearch.lingo3g.Lingo3GClusteringAlgorithm;
+import com.carrotsearch.lingo3g.Lingo3GClusteringAlgorithmDescriptor;
+import com.google.gson.GsonBuilder;
+import org.apache.commons.io.FileUtils;
+import org.carrot2.core.*;
+import org.carrot2.core.attribute.CommonAttributesDescriptor;
+import org.carrot2.core.IDocumentSource;
+import org.codehaus.jackson.map.util.JSONWrappedObject;
+import org.json.JSONArray;
+import org.json.simple.JSONObject;
+import com.google.gson.Gson;
+
+import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.regex.*;
+import java.util.*;
+
+public class lingoclusteringfinalbackup {
+
+    public ArrayList getcontents(String id)
+    {
+        mydb dbMan = new mydb();
+        Map<String,String> docMap = dbMan.getid(id);
+        final ArrayList<Document> documents = new ArrayList<Document>();
+        for(String key : docMap.keySet())
+        {
+            documents.add(new Document(key,docMap.get(key)));
+        }
+        return documents;
+    }
+//    public String formClusterJSON(lingoclusteringfinalbackup lingo)
+//    {
+//        Gson gson = new GsonBuilder().create();
+//        groups groups = new groups();
+//        groups.groups = new ArrayList<groups>();
+//        for(Integer temp: lingo.casecontents("186"))
+//        {
+//            List<String> fileList = klust.clusterMap.get(temp);
+//            groups tempgroups = new groups();
+//            tempgroups.label = klust.labelMap.get(temp);
+//            tempgroups.weight = fileList.size();
+//            tempgroups.groups = new ArrayList<groups>();
+//            for (String temp1 : fileList)
+//            {
+//                groups temp2 = new groups();
+//                temp2.label=temp1;
+//                tempgroups.groups.add(temp2);
+//            }
+//            groups.groups.add(tempgroups);
+//        }
+//        return gson.toJson(groups);
+//    }
+    public static String readFile(String path, Charset encoding)
+            throws IOException
+    {
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        return new String(encoded, encoding);
+    }
+    public  static void main(String args[]) throws Exception
+    {
+
+            lingoclusteringfinalbackup lingo = new lingoclusteringfinalbackup();
+            final Controller controller = ControllerFactory.createCachingPooling(IDocumentSource.class, Lingo3GClusteringAlgorithm.class);
+/* Prepare attribute map */
+            final Map<String, Object> attributes = new HashMap<String, Object>();
+/* Put values using attribute builders */
+            CommonAttributesDescriptor.attributeBuilder(attributes).documents(lingo.getcontents("186"));
+            Lingo3GClusteringAlgorithmDescriptor.attributeBuilder(attributes).attributes().maxHierarchyDepth(2);
+/* Perform processing */
+            final ProcessingResult result = controller.process(attributes, Lingo3GClusteringAlgorithm.class);
+            final List<Document> documents = result.getDocuments();
+            final List<Cluster> clusters = result.getClusters();
+            Map<String,String> clust_subclust_label = new HashMap<String,String>();
+
+
+            Map<String, String> clust_doc_map = new HashMap<String, String>();
+            Map<String,Map<String,JSONArray>> clusterfinal = new HashMap<String, Map<String,JSONArray>>();
+            Map<String,Map<String,Integer>> clusterfinal1 = new HashMap<String, Map<String, Integer>>();
+            for (Cluster clust : clusters) {
+                Map<String,Integer> clust_document_count_json = new HashMap<String, Integer>();
+                JSONArray arr1 = new JSONArray();
+                Map<Cluster, List<Cluster>> subcluster = new HashMap<Cluster, List<Cluster>>();
+                List<Cluster> subclust = clust.getSubclusters();
+                subcluster.put(clust, subclust);
+                List<Document> doc_list = clust.getAllDocuments();
+//                System.out.println(clust.getAttributes());
+                for(Document document : doc_list)
+                {
+                    int total = 0;
+                    int count;
+//                    item.add(lingo.countWord(clust.getLabel(), document.getSummary()));
+//                    System.out.println(document.getTitle()+"************"+lingo.countWord(clust.getLabel(), document.getSummary()));
+                    clust_doc_map.put(clust.getLabel(),document.getTitle());
+                }
+
+
+//                System.out.println("\n" + "The Cluster label is**" + clust.getLabel() + "\n");
+
+
+                if (subclust.isEmpty()) {
+                    ArrayList<Integer> item = new ArrayList<Integer>();
+                    Map<String,JSONArray> clust_document = new HashMap<String,JSONArray>();
+                    clust_document_count_json.put(clust.getLabel(),clust.getAllDocuments().size());
+                    for (Document doc : clust.getAllDocuments()) {
+                       arr1.put(doc.getTitle());
+                        item.add(lingo.countRegex(clust.getLabel(),doc.getTitle(), doc.getSummary()));
+
+		    System.out.println("**The Doc is**" + doc.getTitle() + "\n Summary is \n" + doc.getSummary());
+                    System.out.println("Cluster is"+clust.getLabel());
+                    clust_document.put(clust.getLabel(),arr1);
+                    clusterfinal.put(clust.getLabel(),clust_document);
+                    clusterfinal1.put(clust.getLabel(),clust_document_count_json);
+
+                } else {
+                    ArrayList<Integer> item1 = new ArrayList<Integer>();
+                    Map<String,JSONArray> subclust_document = new HashMap<String,JSONArray>();
+                    Map<String,Integer> subclust_document_count_json = new HashMap<String,Integer>();
+                    subclust_document_count_json.put(clust.getLabel(),clust.getAllDocuments().size());
+                    for (Cluster subclustsubstitute : subclust) {
+                        JSONArray arr = new JSONArray();
+                        List<Document> subclust_doc_list = subclustsubstitute.getAllDocuments();
+			System.out.println("subcluster"+subclustsubstitute.getLabel());
+			System.out.println("subcluster size"+subclustsubstitute.getAllDocuments().size());
+                        subclust_document_count_json.put(subclustsubstitute.getLabel(),subclustsubstitute.getAllDocuments().size());
+                       /* for (Document doc : subclustsubstitute.getAllDocuments()) {
+//                           obj.put("title",doc.getTitle());
+//                            arr.put(doc.getTitle());
+                            arr.put(doc.getTitle());
+                            item1.add(lingo.countRegex(subclustsubstitute.getLabel(), doc.getTitle(),doc.getSummary()));
+                        }*/
+                        System.out.println(subclustsubstitute.size());
+                        System.out.println("SUbcluster is"+subclustsubstitute.getLabel());
+                        subclust_document.put(subclustsubstitute.getLabel(),arr);
+                    }
+                }
+            }
+
+            Gson gson = new GsonBuilder().create();
+            System.out.println(gson.toJson(clusterfinal1));
+            System.out.println(result.getClusters());
+            String rawcluster = gson.toJson(obj2);
+            FileUtils.writeStringToFile(new File("cluster.json"), rawcluster );
+            Writer writer = new FileWriter("test.js");
+            result.serializeJson(writer);
+            String jsonout = readFile("test.js", StandardCharsets.UTF_8);
+            FileUtils.writeStringToFile(new File("test.xml"), result.serialize());
+    }
+
+}
